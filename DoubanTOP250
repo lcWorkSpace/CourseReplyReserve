@@ -1,0 +1,83 @@
+# 1.导入需要的模块
+import requests
+import lxml.html
+import csv
+# 2.找规律
+DouBanURL = "https://movie.douban.com/top250?start={}&filter="
+
+
+def getSource(url):
+    """
+    获取网页内容
+    :param url: 网址
+    :return:原始数据源
+    """
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+                             "Chrome/79.0.3945.130 Safari/537.36"}
+    response = requests.get(url, headers=headers)
+    response.encoding = "utf-8"
+    # print(response)
+    return response.content
+
+
+def getEveryItem(source):
+    """
+    对数据进行处理，获取电影信息
+    :param source: 原始数据源
+    :return:存储电影信息的列表
+    """
+    selector = lxml.html.document_fromstring(source)
+    # //可以提取某个标签下的所有信息  @选取属性
+    movieItemList = selector.xpath("//div[@class='info']")
+    # 创建空列表，用于接收电影信息
+    movie_List = []
+    for eachMovie in movieItemList:
+
+        # 创建空字典，用于获取每部电影的信息（标题、副标题、评分、引言）等
+        movieDict = {}
+        title = eachMovie.xpath("div[@class='hd']/a/span[@class='title']/text()")     # 标题
+        otherTitle = eachMovie.xpath("div[@class='hd']/a/span[@class='other']/text()")     # 副标题
+        link = eachMovie.xpath("div[@class='hd']/a/@href")[0]     # 网址
+        star = eachMovie.xpath("div[@class='bd']/div[@class='star']/span[@class='rating_num']/text()")[0]     # 评分
+        quote = eachMovie.xpath("div[@class='bd']/p[@class='quote']/span[@class='inq']/text()")     # 引言
+        # 某些电影可能不存在引言
+        if quote:
+            quote = quote[0]
+        else:
+            quote = ""
+
+        # 将电影信息保存到字典里
+        movieDict["title"] = "".join(title+otherTitle)
+        movieDict["star"] = star
+        movieDict["quote"] = quote
+        movieDict["url"] = link
+
+        # 将保存好电影信息的字典添加到列表中
+        movie_List.append(movieDict)
+        # print(movieDict)
+    return movie_List
+
+
+def writeData(movie_list):
+    """
+    将电影信息写入csv文件中
+    :param movie_list: 存储电影信息的列表
+    :return: 0
+    """
+    with open("DouBanTOP250.csv", "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["title", "star", "quote", "url"])
+        # 写入表头
+        writer.writeheader()
+        for each in movie_list:
+            writer.writerow(each)
+
+
+if __name__ == '__main__':
+    movieList = []
+    for i in range(10):
+        pageLink = DouBanURL.format(i*25)
+        # print(pageLink)
+        resource = getSource(pageLink)
+        movieList += getEveryItem(resource)
+    # print(movieList[:10])
+    writeData(movieList)
